@@ -135,7 +135,8 @@ kbd{border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
   <div class="card">
     <h2>엑셀에서 복사해 붙여넣기 (또는 CSV/TSV 파일 열기)</h2>
     <p class="small" style="margin-top:0">나이스에서 내려받은 엑셀의 <b>특기사항(세부능력 및 특기사항) 열</b>만 복사해 붙여넣으면 됩니다. 한 칸이 학생 한 명입니다. 이때 영역은 아래 <b>기본 영역</b>에서 고르세요.<br>
-    표 전체를 제목행과 함께 복사해도 됩니다. ‘특기사항’ 열을 내용으로, 창체 파일의 ‘영역 구분’ 열을 영역으로, ‘성명’ 열을 이름으로 자동 인식합니다. 빈 칸도 줄 순서를 지켜, ‘자동수정본 복사’를 엑셀의 같은 자리에 그대로 붙여넣을 수 있습니다.</p>
+    표 전체를 제목행과 함께 복사해도 됩니다. ‘특기사항’ 열을 내용으로, 창체 파일의 ‘영역 구분’ 열을 영역으로, ‘성명’ 열을 이름으로 자동 인식합니다. 빈 칸도 줄 순서를 지켜, ‘자동수정본 복사’를 엑셀의 같은 자리에 그대로 붙여넣을 수 있습니다.<br>
+    나이스에서 내려받은 파일 전체(CSV로 저장한 것)를 열어도 됩니다. 위쪽 학교·날짜 줄, 쪽마다 반복되는 머리글, 소계·합계·쪽 번호 줄은 빼고, 쪽이 넘어가며 잘린 글은 이어 붙여 학생·활동별 한 건씩 점검합니다. (이때 자동수정본은 원래 엑셀 줄과 자리가 맞지 않습니다.)</p>
     <textarea id="batchSrc" rows="8" spellcheck="false" placeholder="특기사항 열을 복사해 붙여넣기 (한 칸 = 학생 한 명)&#10;학급회의(2026.04.09.) 서로 다른 두 의견의 근거를 정리한 뒤 절충안을 제안함.&#10;사회정서교육(2026.06.19.) 감정 표현 활동지에 자신의 기분을 문장으로 적고 발표함."></textarea>
     <div class="row" style="margin-top:8px">
       <label class="small">기본 영역 <select id="batchArea"></select></label>
@@ -147,7 +148,7 @@ kbd{border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
     </div>
   </div>
   <div class="card" style="margin-top:16px">
-    <h2>결과 <span class="small" id="batchSum"></span></h2>
+    <h2>결과 <span class="small" id="batchSum"></span> <label class="small" style="font-weight:400;margin-left:8px"><input type="checkbox" id="batchOnlyIssues"> 오류·주의 있는 것만 보기</label></h2>
     <div style="overflow:auto"><table id="batchTable"></table></div>
   </div>
 </section>
@@ -642,7 +643,7 @@ let opts = Object.assign({}, DEFAULT_OPTS, store.get('opts', {}));
 let customText = store.get('custom', '');
 let CUSTOM = [], CUSTOM_OK = new Set();
 // 국립국어원 표기가 맞지만 Kiwi 사전에 없어 '사전에 없는 말'로 뜨는 말
-const BUILTIN_OK = new Set(['핼러윈', '호제', '호제법', '회절', '프랙털', '뱃삯', '키토']);
+const BUILTIN_OK = new Set(['핼러윈', '호제', '호제법', '회절', '프랙털', '뱃삯', '키토', '칼림바', '붐웨커']);
 function buildCustom(){
   CUSTOM = []; CUSTOM_OK = new Set();
   for (const line of customText.split('\n')){
@@ -833,6 +834,8 @@ function check(text, ctx = {}){
       if (res.some(i => (i.cat === 'spelling' || i.cat === 'guide') && overlap(i, c))) continue;
       const w = text.slice(c.start, c.end);
       if (CUSTOM_OK.has(w) || BUILTIN_OK.has(w)) continue;
+      // 받침 'ㅆ'만 넣고 뺀 후보(자아냈고↔자아내고)는 시제 차이라 오타로 보지 않음
+      if (w.length === (c.fix || '').length && [...w].every((ch, k) => { const d = ch.charCodeAt(0) - c.fix.charCodeAt(k); return d === 0 || (Math.abs(d) === 20 && jong(d > 0 ? ch : c.fix[k]) === 20); })) continue;
       res.push({start:c.start, end:c.end, text:w, cat:'spelling', sev:'warn', fix:c.fix, manual:true,
         msg:`오타 의심: 문맥상 ‘${c.fix}’일 가능성이 높습니다. (자모 하나가 다른 실제 단어) — 맞는 말이면 사용자 규칙 탭에 ‘+${w}’ 줄을 추가하세요.`});
     }
@@ -892,7 +895,7 @@ async function fixAllFull(text, ctx = {}){
 /* ================= 뜻 검사 (lib/mlm-worker.js, KLUE-RoBERTa) ================= */
 // 헷갈리는 말 후보(Kiwi 워커가 찾은 자리)마다, 문장 속 그 어절을 원래 말/짝 말로 넣어 언어 모델 점수를 비교한다.
 // 모델 파일은 lib/mlm 아래에 있고 이 컴퓨터 안에서만 돈다.
-const WORKER_V = 9; // 워커 파일을 고치면 올림 (브라우저가 옛 워커를 다시 쓰지 않도록)
+const WORKER_V = 10; // 워커 파일을 고치면 올림 (브라우저가 옛 워커를 다시 쓰지 않도록)
 const MLM_TH = 1.0; // 짝 말이 토큰당 로그 확률로 이만큼 더 자연스러우면 후보 (샘플 1~7 헷갈리는 말 시험으로 정함)
 // 주의: 뜻 검사가 확신하고 Kiwi가 반대하지 않거나(kgain > -0.5), Kiwi가 확신하고 뜻 검사도 같은 쪽일 때
 // 참고: 뜻 검사만 확신할 때 (시험: 주의만 쓰면 검출 96→112, 정상표현 지적 +1 / 모두 주의로 하면 118, +5)
@@ -1211,9 +1214,28 @@ async function runBatch(){
   let rows = parseTable($('#batchSrc').value);
   if (!rows.length){ batchRows = []; $('#batchTable').innerHTML = ''; $('#batchSum').textContent = ''; return; }
   let header = null;
-  // 나이스 엑셀 제목행(학년도·성명·특기사항 등)은 체크하지 않아도 제목행으로 봄
-  const neisHead = rows[0].filter(c => /^(학년도|학기|학년|반\/?번호|반|번호|학생개인번호|성명|과목명|영역 ?구분|세부능력 및 특기사항|특기사항)$/.test(c.trim())).length >= 2;
-  if ($('#hasHeader').checked || neisHead) header = rows.shift();
+  // 나이스 제목행(성명·특기사항 등)은 체크하지 않아도 제목행으로 봄. 내려받은 파일은 위에 학교·날짜 줄이 있어 앞 20줄에서 찾음
+  const isHead = r => r.filter(c => /^(학년도|학기|학년|반\/?번호|반|번호|학생개인번호|성명|과목명|과목|활동명|동아리명|이수시간|시간|[가-힣]*영역 ?구분|세부능력 및 특기사항|특기사항)$/.test(c.trim())).length >= 2;
+  const hi = rows.slice(0, 20).findIndex(isHead);
+  if (hi >= 0){
+    header = rows[hi];
+    const cc = header.findIndex(x => /특기사항|내용|세특|의견/.test(x));
+    // 쪽마다 반복되는 제목행, 소계·합계·쪽 번호·빈 줄(특기사항 칸이 빈 줄)은 버림
+    rows = rows.slice(hi + 1).filter(r => !isHead(r) && (cc < 0 || (r[cc] || '').trim()));
+    if (cc >= 0){
+      // 같은 학생의 둘째 활동 줄은 번호·성명 칸이 비어 있음 → 윗줄 값으로 채움.
+      // 쪽 경계에서 잘린 글은 다음 쪽에 같은 번호·활동명으로 이어짐 → 한 건으로 붙임(잘린 자리의 공백까지 그대로 들어 있음)
+      const keyCols = header.map((h, j) => j !== cc && /번호|반|성명|이름|과목|활동명|동아리명|영역|구분/.test(h) ? j : -1).filter(j => j >= 0);
+      const merged = [];
+      for (const r of rows){
+        const prev = merged[merged.length - 1];
+        if (prev) for (const j of keyCols) if (!(r[j] || '').trim()) r[j] = prev[j];
+        if (prev && keyCols.length && keyCols.every(j => (r[j] || '').trim() === (prev[j] || '').trim())) prev[cc] += r[cc];
+        else merged.push(r);
+      }
+      rows = merged;
+    }
+  } else if ($('#hasHeader').checked) header = rows.shift();
   if (!rows.length){ batchRows = []; $('#batchTable').innerHTML = ''; $('#batchSum').textContent = ''; return; }
   const ncol = Math.max(...rows.map(r => r.length));
   const col = j => rows.map(r => (r[j] || '').trim());
@@ -1235,7 +1257,9 @@ async function runBatch(){
   // 나이스 세특 파일(‘세부능력 및 특기사항’ 열)은 교과 세특으로
   const defArea = header && header[contentCol] && /세부능력/.test(header[contentCol]) && areaCol < 0 ? 'subj' : $('#batchArea').value;
   // 결과 목록 이름표: 나이스 표면 반/번호·성명·과목·영역만 (학년도·학생개인번호 등은 생략)
-  const labelCols = header ? header.map((h, j) => /^(반\/?번호|반|번호|성명|이름|과목명|영역 ?구분|영역)$/.test(h.trim()) ? j : -1).filter(j => j >= 0) : null;
+  // 모든 줄이 같은 값인 칸(주제선택활동 등)은 이름표에서 뺌
+  const labelCols = header ? header.map((h, j) => /^(반\/?번호|반|번호|성명|이름|과목명|과목|활동명|동아리명|[가-힣]*영역 ?구분|영역)$/.test(h.trim()) ? j : -1)
+    .filter(j => j >= 0 && (rows.length < 2 || new Set(col(j)).size > 1)) : null;
   const btn = $('#runBatch');
   btn.disabled = true;
   batchRows = [];
@@ -1265,15 +1289,21 @@ function renderBatch(){
   const cnt = (r, s) => r.issues.filter(i => i.sev === s).length;
   const tot = s => batchRows.reduce((a, r) => a + cnt(r, s), 0);
   const clean = batchRows.filter(r => !cnt(r, 'error') && !cnt(r, 'warn')).length;
-  $('#batchSum').textContent = `${batchRows.length}건 · 오류 ${tot('error')} · 주의 ${tot('warn')} · 참고 ${tot('info')} · 오류·주의 없음 ${clean}건`;
+  const oneArea = batchRows.every(r => r.area === batchRows[0].area); // 영역이 모두 같으면 칸 대신 요약에 한 번만
+  $('#batchSum').textContent = `${batchRows.length}건${oneArea && batchRows.length ? ' (' + DEFAULT_AREAS.find(a => a.id === batchRows[0].area).name + ')' : ''} · 오류 ${tot('error')} · 주의 ${tot('warn')} · 참고 ${tot('info')} · 오류·주의 없음 ${clean}건`;
   const areaName = id => DEFAULT_AREAS.find(a => a.id === id).name;
-  $('#batchTable').innerHTML = `<tr><th>#</th><th>구분</th><th>영역</th><th class="n">byte</th><th class="n">오류</th><th class="n">주의</th><th class="n">참고</th><th></th></tr>` +
-    batchRows.map((r, k) => `<tr>
-      <td>${r.n}</td><td>${esc(r.labels || '-')}</td><td class="small">${esc(areaName(r.area))}</td>
-      <td class="n" style="${r.lim && r.b > r.lim ? 'color:var(--err);font-weight:700' : ''}">${r.b}${r.lim ? ' / ' + r.lim : ''}</td>
+  const only = $('#batchOnlyIssues').checked;
+  // 보기를 누르지 않아도 무엇이 걸렸는지 보이게: 오류·주의 항목을 '틀린 말→고칠 말'로 몇 개만
+  const brief = r => { const xs = r.issues.filter(i => i.sev !== 'info'), s = xs.slice(0, 4).map(i => `<span class="sev ${i.sev}" style="margin:0 2px 0 0">${SEV_LABEL[i.sev]}</span>${i.text ? esc(i.text) + (i.fix !== null && i.fix !== undefined ? ' → ' + esc(i.fix || '(삭제)') : '') : esc(i.msg)}`).join('<br>');
+    return s + (xs.length > 4 ? `<br><span class="small">외 ${xs.length - 4}건</span>` : ''); };
+  $('#batchTable').innerHTML = `<tr><th>#</th><th>구분</th>${oneArea ? '' : '<th>영역</th>'}<th class="n">byte</th><th class="n">오류</th><th class="n">주의</th><th class="n">참고</th><th>걸린 곳</th><th></th></tr>` +
+    batchRows.map((r, k) => only && !cnt(r, 'error') && !cnt(r, 'warn') ? '' : `<tr>
+      <td>${r.n}</td><td style="min-width:9em">${esc(r.labels || '-')}</td>${oneArea ? '' : `<td class="small" style="min-width:6em">${esc(areaName(r.area))}</td>`}
+      <td class="n" style="white-space:nowrap;${r.lim && r.b > r.lim ? 'color:var(--err);font-weight:700' : ''}">${r.b}${r.lim ? ' / ' + r.lim : ''}</td>
       <td class="n" style="color:var(--err)">${cnt(r,'error') || ''}</td><td class="n" style="color:var(--warn)">${cnt(r,'warn') || ''}</td><td class="n" style="color:var(--info)">${cnt(r,'info') || ''}</td>
+      <td class="small" style="min-width:220px">${brief(r)}</td>
       <td style="white-space:nowrap"><button class="btn" data-open="${k}">보기</button> <button class="btn" data-edit="${k}">편집</button></td></tr>
-      <tr class="detail" id="det-${k}" hidden><td colspan="8"></td></tr>`).join('');
+      <tr class="detail" id="det-${k}" hidden><td colspan="${oneArea ? 8 : 9}"></td></tr>`).join('');
 }
 $('#batchTable').addEventListener('click', e => {
   const o = e.target.closest('[data-open]'), ed = e.target.closest('[data-edit]');
@@ -1292,6 +1322,7 @@ $('#batchTable').addEventListener('click', e => {
   }
 });
 $('#runBatch').addEventListener('click', runBatch);
+$('#batchOnlyIssues').addEventListener('change', renderBatch);
 $('#batchArea').addEventListener('change', e => store.set('batchArea', e.target.value));
 $('#openCsv').addEventListener('change', e => readFile(e.target, t => { $('#batchSrc').value = t; runBatch(); }));
 
