@@ -188,7 +188,7 @@ kbd{border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
     <ul>
       <li><b>띄어쓰기</b>: 2칸 이상 공백, 앞뒤 공백, 탭, 문장부호 앞 공백, 마침표·쉼표 뒤 띄어쓰기 누락, 의존명사(수·것·때·뿐) 붙여쓰기, ‘~지 않다’, ‘~게 되다’, ‘~해야 하다’, 조사 띄어쓰기 등. 실행.bat로 열면 <b>Kiwi 형태소 분석기</b>가 문맥을 보고 붙여 쓴 어절(예: 문제를해결함 → 문제를 해결함)도 찾아냅니다.</li>
       <li><b>맞춤법</b>: 자주 틀리는 표현·외래어 표기 사전 약 260개(됬→됐, 몇일→며칠, 금새→금세, 역활→역할, 깨끗히→깨끗이, 있슴→있음, 할께→할게, 이중피동 등), 단독 자모(ㅋ, ㅏ 등) 오타. 실행.bat로 열면 사전에 없는 말(설밍함 → 설명함)과 <b>헷갈리는 말</b>(반듯이/반드시, 틀리다/다르다, 너머/넘어/너무, 맞히다/맞추다, 로서/로써, 지향/지양, 보전/보존, 출연/출현, 임대/임차 등 약 70쌍)도 문맥으로 판단해 알려 줍니다. 헷갈리는 말은 이 컴퓨터 안에 들어 있는 한국어 언어 모델(KLUE-RoBERTa, lib/mlm)로 뜻까지 비교합니다. 처음 켤 때 모델을 불러오느라 수십 초 걸릴 수 있습니다. 이 둘은 틀릴 수 있어 일괄 수정에서 빠지며, 확인 후 ‘수정’ 버튼으로 하나씩 고칩니다.</li>
-      <li><b>기재요령</b>: 공인어학시험, 교외 대회·수상, 논문·출판·지식재산권, 해외활동, 사교육, 부모 사회·경제적 지위, 대학명, 상호·기관명, 보드게임·교구·앱 상품명, 곡명, 모의고사·석차·점수, 자격증, 방과후학교, 영재교육원 등 기재 금지·주의 표현. 은어·신조어(대박, 열공, 멘붕 등)는 ‘참고’로 알려 줍니다.</li>
+      <li><b>기재요령</b>: 공인어학시험, 교외 대회·수상, 논문·출판·지식재산권, 해외활동, 사교육, 부모 사회·경제적 지위, 대학명, 상호·기관명, 보드게임·교구·앱 상품명, 곡명(음악 교과 세특은 허용: 일괄 점검의 과목 칸이나 글 앞 ‘음악:’으로 구별), 모의고사·석차·점수, 자격증, 방과후학교, 영재교육원 등 기재 금지·주의 표현. 은어·신조어(대박, 열공, 멘붕 등)는 ‘참고’로 알려 줍니다.</li>
       <li><b>표기</b>: 영문 표기, 특수문자·이모지, 반복 문장부호(…, !, ?), 같은 단어 반복, 서술형 종결(-다.) 혼용</li>
       <li><b>글자 수</b>: NEIS 바이트 기준으로 영역별 제한 초과 여부</li>
     </ul>
@@ -850,6 +850,9 @@ function check(text, ctx = {}){
     while ((i = text.indexOf(ctx.name, i + 1)) !== -1)
       res.push({start:i, end:i + ctx.name.length, text:ctx.name, cat:'guide', sev:'warn', msg:'본문에 학생 이름이 들어 있습니다. 성명 기재 여부를 확인하세요.', fix:null});
   }
+  // 음악 교과 세특은 교과서 제재곡 이름을 쓸 수 있음(학교 방침) → 곡명 지적 뺌. 과목은 일괄 점검의 과목 칸이나 글 앞 '음악:'으로 앎
+  const subj = ctx.subject || (text.match(/^\s*([가-힣·]{2,10})(?:\([^)\n]*\))?\s?:/) || [])[1] || '';
+  if (/음악/.test(subj)) for (let k = res.length - 1; k >= 0; k--) if (res[k].cat === 'guide' && /^구체적인 곡명/.test(res[k].msg)) res.splice(k, 1);
   const ord = {error:0, warn:1, info:2};
   res.sort((a, b) => a.start - b.start || ord[a.sev] - ord[b.sev]);
   // 여러 규칙이 같은 자리·같은 수정안을 내면 하나만 남김
@@ -1306,6 +1309,7 @@ async function runBatch(){
   // 나이스 세특 파일(‘세부능력 및 특기사항’ 열)은 교과 세특으로
   const defArea = header && header[contentCol] && /세부능력/.test(header[contentCol]) && areaCol < 0 ? 'subj' : $('#batchArea').value;
   // 결과 목록 이름표: 나이스 표면 반/번호·성명·과목·영역만 (학년도·학생개인번호 등은 생략)
+  const subjCol = header ? header.findIndex(h => /^과목/.test((h || '').trim())) : -1; // 세특 파일의 과목(명) 칸
   // 모든 줄이 같은 값인 칸(주제선택활동 등)은 이름표에서 뺌
   const labelCols = header ? header.map((h, j) => /^(반\/?번호|반|번호|성명|이름|과목명|과목|활동명|동아리명|[가-힣]*영역 ?구분|영역)$/.test(h.trim()) ? j : -1)
     .filter(j => j >= 0 && (rows.length < 2 || new Set(col(j)).size > 1)) : null;
@@ -1321,7 +1325,7 @@ async function runBatch(){
     const area = (areaCol >= 0 && detectArea(r[areaCol])) || defArea;
     const name = nameCol >= 0 ? (r[nameCol] || '').trim() : '';
     const labels = r.filter((_, j) => j !== contentCol && (!labelCols || !labelCols.length || labelCols.includes(j))).map(x => x.trim()).filter(Boolean).join(' · ');
-    const ctx = {name, area};
+    const ctx = {name, area, subject: subjCol >= 0 ? (r[subjCol] || '').trim() : ''};
     const kr = opts.kiwi ? await kiwi.analyze(text) : null;
     const issues = check(text, {...ctx, kiwi: kr});
     const b = neisBytes(text), lim = areaLimit(area);
