@@ -136,13 +136,13 @@ kbd{border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
     <h2>엑셀에서 복사해 붙여넣기 (또는 CSV/TSV 파일 열기)</h2>
     <p class="small" style="margin-top:0">나이스에서 내려받은 엑셀의 <b>특기사항(세부능력 및 특기사항) 열</b>만 복사해 붙여넣으면 됩니다. 한 칸이 학생 한 명입니다. 이때 영역은 아래 <b>기본 영역</b>에서 고르세요.<br>
     표 전체를 제목행과 함께 복사해도 됩니다. ‘특기사항’ 열을 내용으로, 창체 파일의 ‘영역 구분’ 열을 영역으로, ‘성명’ 열을 이름으로 자동 인식합니다. 빈 칸도 줄 순서를 지켜, ‘자동수정본 복사’를 엑셀의 같은 자리에 그대로 붙여넣을 수 있습니다.<br>
-    나이스에서 내려받은 파일 전체(CSV로 저장한 것)를 열어도 됩니다. 위쪽 학교·날짜 줄, 쪽마다 반복되는 머리글, 소계·합계·쪽 번호 줄은 빼고, 쪽이 넘어가며 잘린 글은 이어 붙여 학생·활동별 한 건씩 점검합니다. (이때 자동수정본은 원래 엑셀 줄과 자리가 맞지 않습니다.)</p>
+    나이스에서 내려받은 엑셀(.xlsx) 파일을 ‘파일 열기’로 바로 열어도 됩니다(파일은 이 브라우저 안에서만 읽음). 위쪽 학교·날짜 줄, 쪽마다 반복되는 머리글, 소계·합계·쪽 번호 줄은 빼고, 쪽이 넘어가며 잘린 글은 이어 붙여 학생·활동별 한 건씩 점검합니다. 교과 세특 파일은 한 칸에 이어 적힌 ‘수학: … 과학: …’을 과목별로 나눕니다. (이때 자동수정본은 원래 엑셀 줄과 자리가 맞지 않습니다.)</p>
     <textarea id="batchSrc" rows="8" spellcheck="false" placeholder="특기사항 열을 복사해 붙여넣기 (한 칸 = 학생 한 명)&#10;학급회의(2026.04.09.) 서로 다른 두 의견의 근거를 정리한 뒤 절충안을 제안함.&#10;사회정서교육(2026.06.19.) 감정 표현 활동지에 자신의 기분을 문장으로 적고 발표함."></textarea>
     <div class="row" style="margin-top:8px">
       <label class="small">기본 영역 <select id="batchArea"></select></label>
       <label class="small"><input type="checkbox" id="hasHeader"> 첫 줄은 제목행 (나이스 제목행은 자동 인식)</label>
       <button class="btn primary" id="runBatch">일괄 점검</button>
-      <label class="btn" style="cursor:pointer">파일 열기(.csv/.tsv/.txt)<input type="file" id="openCsv" accept=".csv,.tsv,.txt" hidden></label>
+      <label class="btn" style="cursor:pointer">파일 열기(.xlsx/.csv/.tsv/.txt)<input type="file" id="openCsv" accept=".xlsx,.csv,.tsv,.txt" hidden></label>
       <button class="btn" id="exportIssues">문제 목록 CSV 저장</button>
       <button class="btn" id="exportFixed">자동수정본 복사(엑셀용)</button>
     </div>
@@ -643,7 +643,7 @@ let opts = Object.assign({}, DEFAULT_OPTS, store.get('opts', {}));
 let customText = store.get('custom', '');
 let CUSTOM = [], CUSTOM_OK = new Set();
 // 국립국어원 표기가 맞지만 Kiwi 사전에 없어 '사전에 없는 말'로 뜨는 말
-const BUILTIN_OK = new Set(['핼러윈', '호제', '호제법', '회절', '프랙털', '뱃삯', '키토', '칼림바', '붐웨커']);
+const BUILTIN_OK = new Set(['핼러윈', '호제', '호제법', '회절', '프랙털', '뱃삯', '키토', '칼림바', '붐웨커', '컵타', '제재곡', '붓점', '검산', '회의자', '형성자', '상형자', '지사자']);
 function buildCustom(){
   CUSTOM = []; CUSTOM_OK = new Set();
   for (const line of customText.split('\n')){
@@ -834,8 +834,8 @@ function check(text, ctx = {}){
       if (res.some(i => (i.cat === 'spelling' || i.cat === 'guide') && overlap(i, c))) continue;
       const w = text.slice(c.start, c.end);
       if (CUSTOM_OK.has(w) || BUILTIN_OK.has(w)) continue;
-      // 받침 'ㅆ'만 넣고 뺀 후보(자아냈고↔자아내고)는 시제 차이라 오타로 보지 않음
-      if (w.length === (c.fix || '').length && [...w].every((ch, k) => { const d = ch.charCodeAt(0) - c.fix.charCodeAt(k); return d === 0 || (Math.abs(d) === 20 && jong(d > 0 ? ch : c.fix[k]) === 20); })) continue;
+      // 받침 'ㅆ'만 넣고 뺀 후보(자아냈고↔자아내고)는 시제 차이, 끝 글자 받침 'ㄴ'만 다른 후보(뛰어나↔뛰어난)는 연결·관형 차이라 오타로 보지 않음
+      if (w.length === (c.fix || '').length && [...w].every((ch, k) => { const d = ch.charCodeAt(0) - c.fix.charCodeAt(k); return d === 0 || (Math.abs(d) === 20 && jong(d > 0 ? ch : c.fix[k]) === 20) || (k === w.length - 1 && Math.abs(d) === 4 && jong(d > 0 ? ch : c.fix[k]) === 4); })) continue;
       res.push({start:c.start, end:c.end, text:w, cat:'spelling', sev:'warn', fix:c.fix, manual:true,
         msg:`오타 의심: 문맥상 ‘${c.fix}’일 가능성이 높습니다. (자모 하나가 다른 실제 단어) — 맞는 말이면 사용자 규칙 탭에 ‘+${w}’ 줄을 추가하세요.`});
     }
@@ -895,7 +895,7 @@ async function fixAllFull(text, ctx = {}){
 /* ================= 뜻 검사 (lib/mlm-worker.js, KLUE-RoBERTa) ================= */
 // 헷갈리는 말 후보(Kiwi 워커가 찾은 자리)마다, 문장 속 그 어절을 원래 말/짝 말로 넣어 언어 모델 점수를 비교한다.
 // 모델 파일은 lib/mlm 아래에 있고 이 컴퓨터 안에서만 돈다.
-const WORKER_V = 10; // 워커 파일을 고치면 올림 (브라우저가 옛 워커를 다시 쓰지 않도록)
+const WORKER_V = 11; // 워커 파일을 고치면 올림 (브라우저가 옛 워커를 다시 쓰지 않도록)
 const MLM_TH = 1.0; // 짝 말이 토큰당 로그 확률로 이만큼 더 자연스러우면 후보 (샘플 1~7 헷갈리는 말 시험으로 정함)
 // 주의: 뜻 검사가 확신하고 Kiwi가 반대하지 않거나(kgain > -0.5), Kiwi가 확신하고 뜻 검사도 같은 쪽일 때
 // 참고: 뜻 검사만 확신할 때 (시험: 주의만 쓰면 검출 96→112, 정상표현 지적 +1 / 모두 주의로 하면 118, +5)
@@ -1165,8 +1165,47 @@ $('#copy').addEventListener('click', async () => {
 });
 $('#openTxt').addEventListener('change', e => readFile(e.target, t => { pushHistory(); src.value = norm(t); runSingle(); }));
 
+// 나이스에서 내려받은 .xlsx를 이 브라우저 안에서 바로 읽음(외부 라이브러리·전송 없음). 첫 시트를 탭으로 나눈 글로 바꿈
+async function xlsxToTsv(buf){
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  let e = u8.length - 22; while (e >= 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('엑셀(.xlsx) 파일이 아닙니다.');
+  const files = {};
+  for (let i = 0, p = dv.getUint32(e + 16, true), n = dv.getUint16(e + 10, true); i < n; i++){
+    const nl = dv.getUint16(p + 28, true);
+    files[new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nl))] = {method: dv.getUint16(p + 10, true), size: dv.getUint32(p + 20, true), off: dv.getUint32(p + 42, true)};
+    p += 46 + nl + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+  }
+  const get = async name => {
+    const f = files[name]; if (!f) return null;
+    const st = f.off + 30 + dv.getUint16(f.off + 26, true) + dv.getUint16(f.off + 28, true), data = u8.subarray(st, st + f.size);
+    const raw = f.method === 0 ? data : new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    return new DOMParser().parseFromString(new TextDecoder().decode(raw), 'application/xml');
+  };
+  const texts = el => [...el.getElementsByTagName('t')].filter(t => t.parentNode.nodeName !== 'rPh').map(t => t.textContent).join(''); // 윗주(rPh) 제외
+  const ssDoc = await get('xl/sharedStrings.xml'), ss = ssDoc ? [...ssDoc.getElementsByTagName('si')].map(texts) : [];
+  // shortcut: 시트가 여러 개면 sheet1(첫 시트)만 읽음. 나이스 파일은 시트 하나
+  const sheet = files['xl/worksheets/sheet1.xml'] ? 'xl/worksheets/sheet1.xml' : Object.keys(files).filter(k => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort()[0];
+  const doc = sheet && await get(sheet); if (!doc) throw new Error('시트를 찾지 못했습니다.');
+  const rows = [];
+  [...doc.getElementsByTagName('row')].forEach((r, k) => {
+    const row = rows[(+r.getAttribute('r') || k + 1) - 1] = [];
+    for (const c of r.getElementsByTagName('c')){
+      let ci = 0; for (const ch of (c.getAttribute('r') || '').replace(/\d+/g, '')) ci = ci * 26 + ch.charCodeAt(0) - 64;
+      const t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0];
+      row[(ci || row.length + 1) - 1] = t === 's' ? (ss[+(v && v.textContent)] || '') : t === 'inlineStr' ? texts(c) : (v ? v.textContent : '');
+    }
+  });
+  const w = Math.max(1, ...rows.filter(Boolean).map(r => r.length));
+  const cell = v => /[\t\n"]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  return Array.from(rows, r => Array.from({length: w}, (_, j) => cell((r && r[j]) || '')).join('\t')).join('\n');
+}
 function readFile(input, cb){
   const f = input.files[0]; if (!f) return;
+  if (/\.xlsx$/i.test(f.name)){
+    f.arrayBuffer().then(xlsxToTsv).then(cb, e => alert('엑셀 파일을 읽지 못했습니다: ' + e.message + '\n엑셀에서 표를 복사해 붙여넣어도 됩니다.')).finally(() => { input.value = ''; });
+    return;
+  }
   const r = new FileReader();
   r.onload = () => {
     const buf = new Uint8Array(r.result);
@@ -1215,10 +1254,10 @@ async function runBatch(){
   if (!rows.length){ batchRows = []; $('#batchTable').innerHTML = ''; $('#batchSum').textContent = ''; return; }
   let header = null;
   // 나이스 제목행(성명·특기사항 등)은 체크하지 않아도 제목행으로 봄. 내려받은 파일은 위에 학교·날짜 줄이 있어 앞 20줄에서 찾음
-  const isHead = r => r.filter(c => /^(학년도|학기|학년|반\/?번호|반|번호|학생개인번호|성명|과목명|과목|활동명|동아리명|이수시간|시간|[가-힣]*영역 ?구분|세부능력 및 특기사항|특기사항)$/.test(c.trim())).length >= 2;
+  const isHead = r => r.filter(c => /^(학년도|학기|학년|반\/?번호|반|번호|학생개인번호|성명|과목명|과목|활동명|동아리명|이수시간|시간|[가-힣]*영역 ?구분|세부능력및특기사항|특기사항)$/.test(c.replace(/\s+/g, ''))).length >= 2;
   const hi = rows.slice(0, 20).findIndex(isHead);
   if (hi >= 0){
-    header = rows[hi];
+    header = rows[hi].map(h => /^[가-힣](?:\s+[가-힣])+$/.test(h.trim()) && h.trim().length <= 8 ? h.replace(/\s+/g, '') : h.trim()); // '번 호'·'성  명' → 번호·성명
     const cc = header.findIndex(x => /특기사항|내용|세특|의견/.test(x));
     // 쪽마다 반복되는 제목행, 소계·합계·쪽 번호·빈 줄(특기사항 칸이 빈 줄)은 버림
     rows = rows.slice(hi + 1).filter(r => !isHead(r) && (cc < 0 || (r[cc] || '').trim()));
@@ -1234,6 +1273,16 @@ async function runBatch(){
         else merged.push(r);
       }
       rows = merged;
+      // 세특 파일은 한 학생 칸에 여러 과목이 '수학: … 과학: …'처럼 이어 있음 → 과목마다 한 건(글자 수 제한도 과목별)
+      const SUBJ_HEAD = /(?:^|(?<=[.!?。]\s*))([가-힣·]{2,10}(?:\([^()\n]{1,10}\))?)\s?:\s*/g;
+      if (/세부능력/.test(header[cc]) && rows.some(r => /^\s*[가-힣·]{2,10}(?:\([^()]{1,10}\))?\s?:/.test(r[cc]))){
+        header = [...header, '과목'];
+        rows = rows.flatMap(r => {
+          const ms = [...r[cc].matchAll(SUBJ_HEAD)];
+          if (!ms.length || ms[0].index > 0) return [[...r, '']];
+          return ms.map((m, k) => { const x = [...r]; x[cc] = r[cc].slice(m.index + m[0].length, k + 1 < ms.length ? ms[k + 1].index : undefined).trim(); return [...x, m[1]]; });
+        });
+      }
     }
   } else if ($('#hasHeader').checked) header = rows.shift();
   if (!rows.length){ batchRows = []; $('#batchTable').innerHTML = ''; $('#batchSum').textContent = ''; return; }
